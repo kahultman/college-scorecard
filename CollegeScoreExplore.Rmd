@@ -9,15 +9,11 @@ Explore the College Score Card Data Set
 
 
 ```{r Load Data}
-getwd()
-setwd("./CollegeScorecard_Raw_Data/")
+
 # Use the 2011 merged file, since it has data for earnings. 
-Scorecard <- read.csv("MERGED2011_PP.csv", na.strings = c("NULL", "PrivacySuppressed"))
-
-summary(Scorecard)
-head(str(Scorecard))
-
+Scorecard <- read.csv("Volumes/Win_media/Keith_Data/CollegeScorecard/CollegeScorecard_Raw_Data/MERGED2011_PP.csv", na.strings = c("NULL", "PrivacySuppressed"))
 save(Scorecard, file="Scorecard.Rda")
+load("Scorecard.Rda")
 ```
 
 This is a ton of extraneous data! 1729 variables - many of which are NULL throughout.
@@ -66,22 +62,54 @@ These data might be useful to filter on
 ```{r Currently operating and missing data}
 # Currently operating Schools
 Scorecard$CURROPER <- as.logical(Scorecard$CURROPER)
-str(Scorecard$CURROPER)
 table(Scorecard$CURROPER)
-
 Scorecard_Current <- subset(Scorecard, CURROPER == TRUE)
-
 
 save(Scorecard_Current, file="ScorecardCurrent.Rda")
 ```
 
+## Let's look at some of these variables.
 
-###### Ideas for project
+```{r Plot Matrix}
+tmpScorecard <- data.frame(matrix("NA", ncol=0, nrow=7675))
+tmpScorecard$INSTNM <- Scorecard$INSTNM
+tmpScorecard$ADM_RATE <- Scorecard$ADM_RATE
+tmpScorecard$SAT_AVG <- Scorecard$SAT_AVG
+tmpScorecard$ACTCMMID <- Scorecard$ACTCMMID
+tmpScorecard$AVGFACSAK <- Scorecard$AVGFACSAL
+tmpScorecard$COSTT4_A <- Scorecard$COSTT4_A
+tmpScorecard$md_earn_wne_p10 <- Scorecard$md_earn_wne_p10
+tmpScorecard$mn_earn_wne_p10 <- Scorecard$mn_earn_wne_p10
+str(tmpScorecard)
+
+library(GGally)
+
+ggpairs(tmpScorecard, columns=2:8, title="plotmatrix")
+
+
+```
+
+## Ideas for project
 
 The current tool for students does not tell them the likelihood of getting in to the school. 
 
 I could take the average SAT score and the 25th and 75th percentiles to get a the standard deviation and then calculate probability given an actual score. 
 
+```{r Probability of acceptance with SAT data}
+
+#
+str(tmpScorecard)
+
+#stdev = (X - mu)/Z 
+tmpScorecard$SATVRMID <- Scorecard$SATVRMID
+tmpScorecard$SATVR_SD <- (Scorecard$SATVR25 - Scorecard$SATVRMID) / -0.674
+head(tmpScorecard$SATVRMID)
+head(tmpScorecard$SATVR_SD)
+qnorm(0.10, 410, 60)
+
+# Was thinking about using Bayes theorum for this, but I don't have enough data. I'm missing the SAT scores of students who are not accepted into the program.
+#
+```
 
 ```{r examine Cost}
 #Scorecard$COSTT4_A <- as.numeric(Scorecard$COSTT4_A)
@@ -93,7 +121,7 @@ str(Scorecard$COSTT4_A)
 
 ```
 
-
+# Are SAT and ACT linear?
 
 ```{r SAT and ACT}
 library(ggplot2)
@@ -113,11 +141,20 @@ is.na(Scorecard_Current$SAT_AVG) & is.na(Scorecard_Current$ACTCMMID)
 
 ```
 
+## How does SAT and Admition rate look?
 
 ```{r Admit rate and SAT}
 library(ggplot2)
-admit.x.sat <- ggplot(Scorecard_Current, aes(ADM_RATE, SAT_AVG))
-admit.x.sat + geom_point()
+
+library(ggplot2)
+
+ggplot(Scorecard, aes(1-ADM_RATE, SAT_AVG)) +
+  geom_point(size=2) + 
+  ggtitle("Figure 2a: \nSelectivity vs. SAT Scores") +
+  xlab("Selectivity (Rejection Rate)") + ylab("Mean SAT Score")  +
+  theme(plot.title = element_text(hjust = 0))
+
+## Interesting - look at the lower right schools with high selectivity rate and low SAT scores
 
 # Which one is more closely tied to Earnings?
 
@@ -250,24 +287,6 @@ sum(is.na(Scorecard$SAT_AVG) & ! is.na(Scorecard$md_earn_wne_p10))
 
 
 
-```{r Plot Matrix}
-tmpScorecard <- data.frame(matrix("NA", ncol=0, nrow=7675))
-tmpScorecard$INSTNM <- Scorecard$INSTNM
-tmpScorecard$ADM_RATE <- Scorecard$ADM_RATE
-tmpScorecard$SAT_AVG <- Scorecard$SAT_AVG
-tmpScorecard$ACTCMMID <- Scorecard$ACTCMMID
-tmpScorecard$AVGFACSAK <- Scorecard$AVGFACSAL
-tmpScorecard$COSTT4_A <- Scorecard$COSTT4_A
-tmpScorecard$md_earn_wne_p10 <- Scorecard$md_earn_wne_p10
-tmpScorecard$mn_earn_wne_p10 <- Scorecard$mn_earn_wne_p10
-str(tmpScorecard)
-
-library(GGally)
-
-ggpairs(tmpScorecard, columns=2:8, title="plotmatrix")
-
-
-```
 
 UGDS = number of total enrolled. 
 PCIP[01-54] = percent students with degree in various fields
@@ -350,20 +369,6 @@ plot(results.binary.hc)
 
 
 
-```{r Probability of acceptance with SAT data}
-
-#
-str(tmpScorecard)
-
-stdev = (X - mu)/Z 
-tmpScorecard$SATVRMID <- Scorecard$SATVRMID
-tmpScorecard$SATVR_SD <- (Scorecard$SATVR25 - Scorecard$SATVRMID) / -0.674
-head(tmpScorecard$SATVRMID)
-head(tmpScorecard$SATVR_SD)
-qnorm(0.10, 410, 60)
-
-#
-```
 
 ```{r Linear Regression of Income}
 
