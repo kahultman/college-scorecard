@@ -1,0 +1,440 @@
+---
+title: "CollegeScoreExplore"
+author: "Keith Hultman"
+date: "September 20, 2015"
+output: html_document
+---
+
+Explore the College Score Card Data Set
+
+
+```{r Load Data}
+getwd()
+setwd("./CollegeScorecard_Raw_Data/")
+# Use the 2011 merged file, since it has data for earnings. 
+Scorecard <- read.csv("MERGED2011_PP.csv", na.strings = c("NULL", "PrivacySuppressed"))
+
+summary(Scorecard)
+head(str(Scorecard))
+
+save(Scorecard, file="Scorecard.Rda")
+```
+
+This is a ton of extraneous data! 1729 variables - many of which are NULL throughout.
+These are the columns I have found that are interesting
+
+These data I would like to graph
+
+- COSTT4_A  Cost for academic year institutions
+- COSTT4_P  Cost for program year institutions
+- ADM_RATE  Admission rate
+- ACTCMMID  Midpoint of ACT scores
+- SATVRMID  Midpoint of SAT reading
+- SATMTMID  Midpoint of SAT Math
+- SATWRMID  Midpoint of SAT Writing
+- SAT_AVG   Average SAT of student admitted
+- UG        Enrollment of undergrad
+- AVGFACSAL Faculty salary
+- PFTFAC    proportion of faculty fulltime
+- C150_4    ￼Completion rate for first-time, full-time students at four year inst.
+- C150_L4   ￼Completion rate for first-time, full-time students at less than four year inst.
+- RET_FT4	First-time, full-time student retention rate at four-year institutions
+- RET_FTL4	First-time, full-time student retention rate at less-than-four-year institutions
+- DEATH_YR2_RT	Percent died within 2 years at original institution
+- WDRAW_ORIG_YR2_RT	Percent withdrawn from original institution within 2 years 
+- FIRSTGEN_COMP_ORIG_YR2_RT	Percent of first-generation students who completed within 2 years at original institution
+- NOT1STGEN_COMP_ORIG_YR2_RT	Percent of not-first-generation students who completed within 2 years at original institution
+- DEATH_YR4_RT	Percent died within 4 years at original institution
+- COMP_ORIG_YR4_RT	Percent completed within 4 years at original institution
+- COMPL_RPY_1YR_RT	One-year repayment rate for completers
+- NONCOM_RPY_1YR_RT	One-year repayment rate for non-completers
+- COMPL_RPY_3YR_RT	Three-year repayment rate for completers
+- NONCOM_RPY_3YR_RT	Three-year repayment rate for non-completers
+- COMPL_RPY_5YR_RT	Five-year repayment rate for completers
+- NONCOM_RPY_5YR_RT	Five-year repayment rate for non-completers
+- COMPL_RPY_7YR_RT	Seven-year repayment rate for completers
+- NONCOM_RPY_7YR_RT	Seven-year repayment rate for non-completers
+- GRAD_DEBT_MDN	The median debt for students who have completed
+- WDRAW_DEBT_MDN	The median debt for students who have not completed
+- mn_earn_wne_p10   Mean earnings 10 years after award
+- md_earn_wne_p10   Median earnings 10 years after award
+
+These data might be useful to filter on
+
+- CURROPER  Flag for currently operating
+
+```{r Currently operating and missing data}
+# Currently operating Schools
+Scorecard$CURROPER <- as.logical(Scorecard$CURROPER)
+str(Scorecard$CURROPER)
+table(Scorecard$CURROPER)
+
+Scorecard_Current <- subset(Scorecard, CURROPER == TRUE)
+
+
+save(Scorecard_Current, file="ScorecardCurrent.Rda")
+```
+
+
+###### Ideas for project
+
+The current tool for students does not tell them the likelihood of getting in to the school. 
+
+I could take the average SAT score and the 25th and 75th percentiles to get a the standard deviation and then calculate probability given an actual score. 
+
+
+```{r examine Cost}
+#Scorecard$COSTT4_A <- as.numeric(Scorecard$COSTT4_A)
+mean(Scorecard$COSTT4_A, na.rm=TRUE)
+summary(Scorecard$COSTT4_A)
+hist(Scorecard$COSTT4_A)
+str(Scorecard$COSTT4_A)
+
+
+```
+
+
+
+```{r SAT and ACT}
+library(ggplot2)
+
+sat.x.act <- ggplot(Scorecard, aes(SAT_AVG, ACTCMMID))
+sat.x.act + geom_point()
+
+sum(is.na(Scorecard$SAT_AVG))
+sum(is.na(Scorecard$ACTCMMID))
+sum(is.na(Scorecard$SAT_AVG) & is.na(Scorecard$ACTCMMID))
+sum(is.na(Scorecard$SAT_AVG) & ! is.na(Scorecard$ACTCMMID))
+sum(is.na(Scorecard$ACTCMMID) & ! is.na(Scorecard$SAT_AVG))
+is.na(Scorecard_Current$SAT_AVG) & is.na(Scorecard_Current$ACTCMMID)
+
+# There are 89 schools that have SAT scores but no ACT scores. All schools with ACT scores have SAT scores. Since these are linearly related, just use SAT scores for analysis.
+
+
+```
+
+
+```{r Admit rate and SAT}
+library(ggplot2)
+admit.x.sat <- ggplot(Scorecard_Current, aes(ADM_RATE, SAT_AVG))
+admit.x.sat + geom_point()
+
+# Which one is more closely tied to Earnings?
+
+admit.x.earn <- ggplot(Scorecard_Current, aes(1-ADM_RATE, md_earn_wne_p10))
+admit.x.earn + geom_point() + xlab("Selectivity (Rejection Rate)") + ylab("Median 10 Year Earnings") + ggtitle("Selectivity vs Earnings")
+
+sat.x.earn <- ggplot(Scorecard_Current, aes(SAT_AVG, md_earn_wne_p10))
+sat.x.earn + geom_point() + ylim(0, 125000) + xlab("Average SAT Score") + ylab("Median 10 Year Earnings") + ggtitle("SAT Score vs Earnings")
+```
+
+```{r clustering on SAT and Admit Rate}
+
+# Create matrix with only the features, remove missing values
+
+sat.admit.df <- subset(Scorecard, select=c("UNITID", "SAT_AVG", "ADM_RATE"))
+#sum(complete.cases(sat.admit.df))
+sat.admit.df <- sat.admit.df[complete.cases(sat.admit.df),]
+sat.admit.df2 <- subset(sat.admit.df, select=c("SAT_AVG", "ADM_RATE"))
+sat.admit.df2 <- scale(sat.admit.df2)
+
+
+
+# k-means clustering
+
+sat.admit.cl <- kmeans(sat.admit.df2, 3)
+
+# Plot the clusters
+sat.admit.df <- as.data.frame(sat.admit.df)
+ggplot(sat.admit.df, aes(1-ADM_RATE, SAT_AVG, color=as.factor(sat.admit.cl$cluster))) + 
+  geom_point() + 
+  ggtitle("Selectivity vs. SAT Score with k-means clustering of 3 groups") +
+  xlab("Selectivity (Rejection Rate)") + ylab("Mean SAT Score") +
+  scale_color_discrete(name="Cluster",
+                       breaks=c("1", "2", "3"),
+                       labels=c("Selective High SAT", "Selective Low SAT", "Nonselective")) 
+  
+# can use sat.admit.df to join with Scorecard dataset
+library(plyr)
+sat.admit.df$select <- as.factor(sat.admit.cl$cluster)
+sat.admit.df$SAT_AVG <- NULL
+sat.admit.df$ADM_RATE <- NULL
+Scorecard2 <- join(Scorecard, sat.admit.df, by="UNITID")
+save(Scorecard2, file="Scorecard_clustered.Rda")
+
+data <- na.omit(Scorecard2[,c("SAT_AVG", "md_earn_wne_p10", "select")])
+ggplot(data, aes(SAT_AVG, md_earn_wne_p10)) + 
+  geom_point() + geom_smooth(method=lm) +
+  facet_grid(.~select)
+
+
+ggplot(data, aes(select, md_earn_wne_p10)) +
+  geom_boxplot(aes(fill=select)) +
+  geom_point(aes(color=select)) +
+  scale_x_discrete(name="Cluster",
+                       breaks=c("1", "2", "3"),
+                       labels=c("Selective High SAT", "Selective Low SAT", "Nonselective")) +
+  theme(legend.position="none") +
+  ylim(30000,60000)+
+  ylab("Median 10 Year Earnings")
+
+  
+# t-test for Selective High SAT schools versus all other schools in Earnings
+t.test(md_earn_wne_p10 ~ select==1, data=Scorecard2)
+# P-value < 2.2e-16, 55,463 for Selective High SAT to 40,565 for all others
+group2 <- subset(data, select==2)
+group3 <- subset(data, select==3)
+t.test(group2$md_earn_wne_p10, group3$md_earn_wne_p10) 
+
+t.test(md_earn_wne_p10 ~ select==3, data=data)
+```
+
+
+
+```{r Earnings and Types of Degrees}
+
+Scorecard_Current$HIGHDEG <- as.factor(Scorecard_Current$HIGHDEG)
+Scorecard_Current$HIGHDEG2 <- factor(Scorecard_Current$HIGHDEG, 
+                                     levels = c(0, 1, 2, 3, 4),
+                                     labels = c("No Degree", "Certificate", "Associate", "Bachelor", " Graduate"))
+earnings <- ggplot(Scorecard_Current, aes(HIGHDEG2, md_earn_wne_p10))
+earnings + geom_boxplot() + ylab("Median 10 Year Earnings") + xlab("Highest degree offered")
+
+# This shows that we should only compare within each category?
+
+# What does it look like when we examine predominant degree granted?
+
+Scorecard_Current$PREDDEG <- as.factor(Scorecard_Current$PREDDEG)
+Scorecard_Current$PREDDEG2 <- factor(Scorecard_Current$PREDDEG, 
+                                     levels = c(0, 1, 2, 3, 4),
+                                     labels = c("Not classified", "Certificate", "Associate", "Bachelor", "Only Graduate"))
+earnings <- ggplot(Scorecard_Current, aes(PREDDEG2, md_earn_wne_p10))
+earnings + geom_boxplot() + ylab("Median 10 Year Earnings") + xlab("Predominant degree offered")
+
+oneway.test(md_earn_wne_p10 ~ PREDDEG2, Scorecard_Current)
+
+
+```
+
+
+
+```{r SAT vs Average Faculty salary}
+
+sat.x.facsal <- ggplot(Scorecard, aes(SAT_AVG, AVGFACSAL))
+sat.x.facsal + geom_point() + geom_smooth()
+facsal.x.sat <- ggplot(Scorecard, aes(AVGFACSAL, SAT_AVG))
+facsal.x.sat + geom_point() + geom_smooth(method=lm) + xlim(0, 20000)
+
+```
+
+
+```{r SAT vs Median earnings 10 years}
+
+sat.x.earn <- ggplot(Scorecard, aes(SAT_AVG, md_earn_wne_p10))
+sat.x.earn + geom_point() + ylim(0, 150000) + geom_smooth(method=lm)
+
+ggplot(Scorecard, aes(md_earn_wne_p10)) + geom_bar() 
+
+cor(Scorecard$SAT_AVG, Scorecard$md_earn_wne_p10, method="pearson", use="complete.obs")
+?cor
+lm(formula= md_earn_wne_p10 ~ SAT_AVG, data=Scorecard)
+
+max(Scorecard$md_earn_wne_p10, na.rm = TRUE)
+sum(! is.na(Scorecard$SAT_AVG) & ! is.na(Scorecard$md_earn_wne_p10))
+sum(! is.na(Scorecard$SAT_AVG) & is.na(Scorecard$md_earn_wne_p10))
+#Only 38 schools with missing earnings and SAT
+sum(is.na(Scorecard$SAT_AVG) & ! is.na(Scorecard$md_earn_wne_p10))
+# lots of missing SAT data for colleges with earnings data. 4499
+
+```
+
+
+
+```{r Plot Matrix}
+tmpScorecard <- data.frame(matrix("NA", ncol=0, nrow=7675))
+tmpScorecard$INSTNM <- Scorecard$INSTNM
+tmpScorecard$ADM_RATE <- Scorecard$ADM_RATE
+tmpScorecard$SAT_AVG <- Scorecard$SAT_AVG
+tmpScorecard$ACTCMMID <- Scorecard$ACTCMMID
+tmpScorecard$AVGFACSAK <- Scorecard$AVGFACSAL
+tmpScorecard$COSTT4_A <- Scorecard$COSTT4_A
+tmpScorecard$md_earn_wne_p10 <- Scorecard$md_earn_wne_p10
+tmpScorecard$mn_earn_wne_p10 <- Scorecard$mn_earn_wne_p10
+str(tmpScorecard)
+
+library(GGally)
+
+ggpairs(tmpScorecard, columns=2:8, title="plotmatrix")
+
+
+```
+
+UGDS = number of total enrolled. 
+PCIP[01-54] = percent students with degree in various fields
+What is the most common degree?
+take each PCIP and multiply it by the UGDS of each school
+
+```{r Degrees Awarded}
+grep("PCIP01", colnames(Scorecard))
+grep("PCIP54", colnames(Scorecard))
+ncol(Scorecard)
+degrees <- data.frame(matrix("NA", ncol=1729, nrow=7675))
+colnames(degrees) <- colnames(Scorecard)
+
+for(i in 62:99){
+  degrees[,i] <- Scorecard[,i] * Scorecard$UGDS
+}
+
+totalstudents <- sum(Scorecard$UGDS, na.rm = TRUE)
+degrees2 <- subset(degrees, select = 62:99)
+degreetotals <- colSums(degrees2, na.rm=TRUE)
+degreetotals <- data.frame(names(degreetotals), degreetotals)
+library(plyr)
+degreetotals <- rename(degreetotals, c("names.degreetotals."="PCIP"))
+
+# Load the human readable names from PCIP codes
+setwd("./CollegeScorecard_Raw_Data/")
+PCIPcodes <- read.csv(file = "PCIP_Codes.csv")
+# join the data into one data frame for ploting
+PCIP <- join(degreetotals, PCIPcodes, by="PCIP")
+library(ggplot2)
+plot <- ggplot(PCIP, aes(x=reorder(Name, degreetotals), y=degreetotals))
+plot + geom_bar(stat="identity") + coord_flip() + xlab("") + ylab("Total Degrees Granted in Field")
+
+
+
+# k-means clustering of degrees offered - what kinds of schools are there?
+
+# Take degree values from Currently running schools
+degrees3 <- subset(Scorecard_Current, select=c(1:4, 62:99))
+# k-means clustering requires the data to have no missing data, so remove rows with NAs
+sum(!complete.cases(degrees3))
+# 551 rows with NAs, take only rows that are complete
+degrees3 <- degrees3[complete.cases(degrees3),]
+degrees3.features <- subset(degrees3, select=5:42)
+View(degrees3.features)
+
+
+
+# Change the degrees field to either 0 or 1. Set to 1 if PCIP value is above 0.01 (more than 1 percent of students are in that field)
+degrees.binary <- degrees3.features > 0.0
+
+results.kmeans <- kmeans(degrees3.features, 6)
+results.kmeans$cluster
+plot(degrees3.features[c("PCIP14", "PCIP38")], col=results$cluster)
+View(PCIPcodes)
+
+results.binary.kmeans <- kmeans(degrees.binary, 6)
+
+
+
+# I really need a heatmap of this, use hierarchical clustering
+# need a distance measure
+
+degrees.dist <- dist(degrees3.features)
+
+results.hc <- hclust(degrees.dist, method="average")
+plot(results.hc)
+?hclust
+?dist
+
+degrees.matrix <- data.matrix(degrees3[,4:42])
+degrees.heatmap <- heatmap(degrees.matrix, col=cm.colors(256), scale="column", margins=c(5,10))
+
+
+
+degrees.binary.dist <- dist(degrees.binary)
+results.binary.hc <- hclust(degrees.binary.dist, method = "average")
+plot(results.binary.hc)
+```
+
+
+
+```{r Probability of acceptance with SAT data}
+
+#
+str(tmpScorecard)
+
+stdev = (X - mu)/Z 
+tmpScorecard$SATVRMID <- Scorecard$SATVRMID
+tmpScorecard$SATVR_SD <- (Scorecard$SATVR25 - Scorecard$SATVRMID) / -0.674
+head(tmpScorecard$SATVRMID)
+head(tmpScorecard$SATVR_SD)
+qnorm(0.10, 410, 60)
+
+#
+```
+
+```{r Linear Regression of Income}
+
+
+# md_md_earn_wne_p10 ~ PREDDEG
+
+# Split data into Train and Test sets
+library(caTools)
+sample <- sample.split(Scorecard_Current$md_earn_wne_p10, SplitRatio = 0.8)
+train <- subset(Scorecard_Current, sample == TRUE)
+test <- subset(Scorecard_Current, sample == FALSE)
+
+summary(train$md_earn_wne_p10)
+summary(test$md_earn_wne_p10)
+
+?sample.split
+lm.1 <- lm(md_earn_wne_p10 ~ SAT_AVG + COSTT4_A + AVGFACSAL + PREDDEG, data=train)
+lm.1
+
+summary(lm.1)
+
+# PREDDEG had no significance, so remove from model
+
+lm.2 <- lm(md_earn_wne_p10 ~ SAT_AVG + COSTT4_A + AVGFACSAL, data=train)
+summary(lm.2)
+test$predicted_earn <- predict.lm(lm.2, newdata=test)
+
+ggplot(test, aes(predicted_earn, md_earn_wne_p10)) + geom_point() + xlim(20000, 75000) + ylim(20000, 75000)
+save(test, file="test.Rda")
+
+train$predicted_earn <- predict.lm(lm.2, newdata=train)
+ggplot(train, aes(predicted_earn, md_earn_wne_p10)) + geom_point() + xlim(20000, 75000) + ylim(20000, 75000)
+
+
+# having trouble graphing residuals, since some data was removed. 
+
+# What about highest degree?
+
+lm.3 <- lm(md_earn_wne_p10 ~ SAT_AVG + COSTT4_A + AVGFACSAL + HIGHDEG, data=train)
+summary(lm.3)
+
+# Not sign. on highest degree.
+# How about how much is spent per student?? Use INEXPFTE and HIGHDEG and remove avgfacsal and costt4_a
+
+lm.4 <- lm(md_earn_wne_p10 ~ SAT_AVG + INEXPFTE + HIGHDEG, data=train)
+summary(lm.4)
+
+# What about ADM_RATE instead of SAT?
+
+lm.5 <- lm(md_earn_wne_p10 ~ ADM_RATE + INEXPFTE + HIGHDEG, data=train)
+summary(lm.5)
+
+test$predicted_earn <- predict.lm(lm.5, newdata=test)
+ggplot(test, aes(predicted_earn, md_earn_wne_p10)) + geom_point() + xlim(20000, 85000) + ylim(20000, 85000)
+
+
+# AMD_RATE vs. SAT
+
+lm.6 <- lm(md_earn_wne_p10 ~ SAT_AVG + ADM_RATE, data=train)
+summary(lm.6)
+
+# since there is a lot of missing data, lets replace missing SAT data with average
+
+lm.7 <- lm(md_earn_wne_p10 ~ SAT_AVG + INEXPFTE, data=train)
+summary(lm.7)
+```
+
+```{r Model based clustering}
+
+library(mclust)
+fit <- Mclust(degrees3.features)
+plot(fit)
+```
+
