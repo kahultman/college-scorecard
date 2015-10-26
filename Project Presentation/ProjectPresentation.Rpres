@@ -1,0 +1,131 @@
+Analysis of the 2011 College Scorecard Data Set
+========================================================
+author: Keith Hultman
+date: October 24, 2015
+
+College and university background
+========================================================
+
+
+* Currently 20 million college students in US
+* Expected to increase to 23 million by 2020
+* 25% of HS students apply to 7 or more colleges
+
+
+
+US News Best Colleges Rankings
+========================================================
+
+
+* Famous ranking of schools
+* Considers quantitative measures of academic quality
+* Each metric is weighted - determined by expertise
+* Broken down by Carnegie classification
+
+***
+
+![US News](USNews.png)
+
+
+========================================================
+![ElmhurstTop10](ElmhurstTop10.png)
+
+College Scorecard
+========================================================
+U.S. Department of Education
+* Released September 2015
+* Unbiased assessment of College metrics
+* Includes earnings after attending
+* Completely new resource for prospective students
+
+What characteristics of colleges can predict future earnings?
+========================================================
+
+
+Three different groups of schools based on incoming students
+========================================================
+
+```{r, echo=FALSE, warning=FALSE}
+load("Scorecard_clustered.Rda")
+library(ggplot2)
+ggplot(Scorecard2, aes(1-ADM_RATE, SAT_AVG, color=as.factor(select))) +
+  geom_point(size=2) + 
+  xlab("Selectivity (Rejection Rate)") + ylab("Mean SAT Score")  +
+  theme(plot.title = element_text(hjust = 0)) +
+  scale_color_discrete(name="Cluster",
+                       breaks=c("1", "2", "3"),
+                       labels=c("Selective High SAT", "Nonselective", "Selective Low SAT")) 
+```
+
+Smart selective schools have high earnings
+========================================================
+```{r, echo=FALSE, warning=FALSE}
+data <- na.omit(Scorecard2[,c("SAT_AVG", "md_earn_wne_p10", "select")])
+ggplot(data, aes(select, md_earn_wne_p10)) +
+  geom_boxplot(aes(fill=select)) +
+  #geom_point(aes(color=select)) +
+  scale_x_discrete(name="Cluster",
+                       breaks=c("1", "2", "3"),
+                       labels=c("Selective High SAT", "Nonselective", "Selective Low SAT")) +
+  theme(legend.position="none") +
+  ylab("Median 10 Year Earnings") +
+  theme(plot.title = element_text(hjust = 0))
+  
+```
+
+What might predict future earnings?
+========================================================
+
+* Average SAT Score
+* Faculty Salary
+* Predominant Degree Awarded
+* Highest Degree Awarded
+* Cost of Tuition
+* Total expenditures per student
+* Admission Rate
+
+
+SAT, cost of tuition, and faculty salary predicts future student earnings
+========================================================
+```{r, echo=FALSE, warning=FALSE}
+load("test.Rda")
+ggplot(test, aes(predicted_earn, md_earn_wne_p10)) + 
+  geom_point(size=1.0) + xlim(20000, 75000) + ylim(20000, 75000) +
+  xlab("Predicted Earnings ($)") +
+  ylab("Actual Earnings ($)") +
+  stat_smooth(method=lm) +
+  theme(plot.title = element_text(hjust = 0))
+
+```
+
+College perspective
+========================================================
+Admissions
+* It's not about being selective 
+* Attract high SAT students
+
+Financial 
+* Increase faculty salaries
+* Increase tuition
+
+Student perspective
+========================================================
+Just because schools with higher average SAT have higher earnings does not mean that this is predictive at the individual level. 
+
+There are a lot of factors to consider, different earnings of various schools may reflect the incoming student body more than it reflects the school. 
+
+
+Earnings by degree
+========================================================
+
+```{r, echo=FALSE, warning=FALSE}
+load("ScorecardCurrent.Rda")
+library(ggplot2)
+ggplot(Scorecard_Current, aes(PREDDEG2, md_earn_wne_p10)) + 
+  geom_boxplot() + 
+  ylab("Median 10 Year Earnings") + 
+  xlab("Predominant degree offered")  +
+  theme(plot.title = element_text(hjust = 0))
+
+```
+
